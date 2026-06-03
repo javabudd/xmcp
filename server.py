@@ -388,8 +388,26 @@ def create_mcp() -> FastMCP:
 
     b3_flags = os.getenv("X_B3_FLAGS", "1")
 
+    # Endpoints that only accept OAuth 2.0 App-Only (Bearer), not OAuth1 user context
+    APP_ONLY_PATH_PREFIXES = (
+        "/2/trends/by/woeid",
+    )
+
+    bearer_token = os.getenv("X_BEARER_TOKEN", "").strip()
+
     async def sign_oauth1_request(request: httpx.Request) -> None:
         request.headers["X-B3-Flags"] = b3_flags
+
+        # App-Only endpoints: use Bearer, skip OAuth1 signing
+        if request.url.path.startswith(APP_ONLY_PATH_PREFIXES):
+            if not bearer_token:
+                raise RuntimeError(
+                    "X_BEARER_TOKEN required for App-Only endpoint "
+                    f"{request.url.path}"
+                )
+            request.headers["Authorization"] = f"Bearer {bearer_token}"
+            return
+
         headers = dict(request.headers)
         content_type = headers.get("Content-Type", "")
         body: str | None = None
