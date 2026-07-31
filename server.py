@@ -9,7 +9,7 @@ import urllib.parse
 import webbrowser
 from pathlib import Path
 
-import httpx
+import httpx2
 import requests
 from fastmcp import FastMCP
 from oauthlib.oauth1 import Client as OAuth1Client
@@ -25,6 +25,8 @@ HTTP_METHODS = {
     "head",
     "trace",
 }
+
+SERVER_VERSION = "2.0.0"
 
 LOGGER = logging.getLogger("xmcp.x_api")
 OAUTH_LOGGER = logging.getLogger("xmcp.oauth1")
@@ -338,9 +340,6 @@ def print_oauth1_header_probe(oauth1_client: OAuth1Client, base_url: str) -> Non
 def create_mcp() -> FastMCP:
     load_env()
     debug_enabled = setup_logging()
-    parser_flag = os.getenv("FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER")
-    if parser_flag is not None:
-        os.environ["FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER"] = parser_flag
 
     base_url = os.getenv("X_API_BASE_URL", "https://api.x.com")
     timeout = float(os.getenv("X_API_TIMEOUT", "30"))
@@ -355,7 +354,7 @@ def create_mcp() -> FastMCP:
     comma_params = collect_comma_params(filtered_spec)
     print_tool_list(filtered_spec)
 
-    async def normalize_query_params(request: httpx.Request) -> None:
+    async def normalize_query_params(request: httpx2.Request) -> None:
         if not comma_params:
             return
         params = list(request.url.params.multi_items())
@@ -395,7 +394,7 @@ def create_mcp() -> FastMCP:
 
     bearer_token = os.getenv("X_BEARER_TOKEN", "").strip()
 
-    async def sign_oauth1_request(request: httpx.Request) -> None:
+    async def sign_oauth1_request(request: httpx2.Request) -> None:
         request.headers["X-B3-Flags"] = b3_flags
 
         # App-Only endpoints: use Bearer, skip OAuth1 signing
@@ -420,7 +419,7 @@ def create_mcp() -> FastMCP:
             body=body,
             headers=headers,
         )
-        request.url = httpx.URL(signed_url)
+        request.url = httpx2.URL(signed_url)
         request.headers.update(signed_headers)
         if print_oauth_header:
             auth_header = signed_headers.get("Authorization")
@@ -429,12 +428,12 @@ def create_mcp() -> FastMCP:
             else:
                 print("OAuth1 Authorization header missing from signed request.")
 
-    async def log_request(request: httpx.Request) -> None:
+    async def log_request(request: httpx2.Request) -> None:
         if not debug_enabled:
             return
         LOGGER.info("X API request %s %s", request.method, request.url)
 
-    async def log_response(response: httpx.Response) -> None:
+    async def log_response(response: httpx2.Response) -> None:
         if not debug_enabled:
             return
         LOGGER.info(
@@ -453,7 +452,7 @@ def create_mcp() -> FastMCP:
                 text = text[:1000] + "...<truncated>"
             LOGGER.warning("X API error body: %s", text)
 
-    client = httpx.AsyncClient(
+    client = httpx2.AsyncClient(
         base_url=base_url,
         headers={},
         timeout=timeout,
@@ -462,10 +461,20 @@ def create_mcp() -> FastMCP:
             "response": [log_response],
         },
     )
+
+    # The tool set is derived from the OpenAPI spec once at startup and never
+    # changes for the life of the process, so MCP 2026-07-28 clients can cache
+    # tools/list and server/discover. MCP_CACHE_TTL=0 leaves the protocol
+    # default of ttlMs 0, which marks the result immediately stale.
+    cache_ttl = _get_env_int("MCP_CACHE_TTL", 300)
+
     return FastMCP.from_openapi(
         openapi_spec=filtered_spec,
         client=client,
         name="X API MCP",
+        version=SERVER_VERSION,
+        cache_ttl=cache_ttl or None,
+        cache_scope="private" if cache_ttl else None,
     )
 
 
