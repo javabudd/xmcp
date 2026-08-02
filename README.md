@@ -148,7 +148,6 @@ Below is the full list of tool calls you can whitelist via
 - `createMediaSubtitles`
 - `createPosts`
 - `createUsersBookmark`
-- `deleteActivitySubscription`
 - `deleteAllConnections`
 - `deleteCommunityNotes`
 - `deleteConnectionsByEndpoint`
@@ -162,8 +161,6 @@ Below is the full list of tool calls you can whitelist via
 - `finalizeMediaUpload`
 - `followList`
 - `followUser`
-- `getAccountActivitySubscriptionCount`
-- `getActivitySubscriptions`
 - `getChatConversation`
 - `getChatConversations`
 - `getCommunitiesById`
@@ -251,7 +248,6 @@ Below is the full list of tool calls you can whitelist via
 - `unmuteUser`
 - `unpinList`
 - `unrepostPost`
-- `updateActivitySubscription`
 - `updateLists`
 
 ## Generate an OAuth2 user token (optional)
@@ -273,8 +269,11 @@ Below is the full list of tool calls you can whitelist via
 
 ## Notes
 
-- Endpoints with `/stream` or `/webhooks` in the path are excluded.
-- Operations tagged `Stream` or `Webhooks`, or marked with
-  `x-twitter-streaming: true`, are excluded.
+- Endpoints with `/stream`, `/webhooks`, `/account_activity`, or
+  `/activity/subscriptions` in the path are excluded.
+- Operations tagged `Stream`, `Webhooks`, `Activity`, or `Account Activity`, or
+  marked with `x-twitter-streaming: true`, are excluded. The activity
+  subscription endpoints configure webhook delivery, and most of them sit
+  outside the `/webhooks` path prefix.
 - The OpenAPI spec is fetched from `https://api.x.com/2/openapi.json` at
   startup.
