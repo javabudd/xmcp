@@ -225,8 +225,16 @@ def should_exclude_operation(path: str, operation: dict) -> bool:
     if "/webhooks" in path or "/stream" in path:
         return True
 
+    # Activity subscriptions configure where X pushes webhook events rather
+    # than reading or writing content, and most of them sit outside the
+    # /webhooks prefix that the check above catches.
+    if "/account_activity" in path or "/activity/subscriptions" in path:
+        return True
+
     tags = [tag.lower() for tag in operation.get("tags", []) if isinstance(tag, str)]
     if "stream" in tags or "webhooks" in tags:
+        return True
+    if "activity" in tags or "account activity" in tags:
         return True
 
     if operation.get("x-twitter-streaming") is True:
